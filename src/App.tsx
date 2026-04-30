@@ -30,6 +30,7 @@ const HUMAN_WANDER_SPEED = 55;
 const HUMAN_ESCAPE_SPEED = 125;
 
 const HUMAN_COUNT = 15;
+const HUMAN_RESPAWN_DELAY = 800;
 const GAME_TIME = 30;
 
 const DETECT_RANGE = 170;
@@ -97,6 +98,8 @@ function HamsterGame({
   const scoreRef = useRef(0);
   const killsRef = useRef(0);
   const killedIds = useRef<Set<number>>(new Set());
+  const nextHumanIdRef = useRef(HUMAN_COUNT);
+  const gameEndedRef = useRef(false);
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
@@ -111,6 +114,7 @@ function HamsterGame({
     window.addEventListener("keyup", keyUp);
 
     let rafId: number;
+    const respawnTimeoutIds: number[] = [];
 
     const update = (time: number) => {
       if (lastTimeRef.current === null) {
@@ -123,6 +127,7 @@ function HamsterGame({
       timeRef.current -= dt;
 
       if (timeRef.current <= 0) {
+        gameEndedRef.current = true;
         onGameEnd(scoreRef.current, killsRef.current);
         return;
       }
@@ -159,6 +164,22 @@ function HamsterGame({
 
         setScore(scoreRef.current);
         setKills(killsRef.current);
+
+        for (let i = 0; i < killedCount; i += 1) {
+          const timeoutId = window.setTimeout(() => {
+            if (gameEndedRef.current) {
+              return;
+            }
+
+            const newHuman = createHuman(nextHumanIdRef.current);
+            nextHumanIdRef.current += 1;
+
+            humansRef.current = [...humansRef.current, newHuman];
+            setHumans(humansRef.current);
+          }, HUMAN_RESPAWN_DELAY);
+
+          respawnTimeoutIds.push(timeoutId);
+        }
       }
 
       rafId = requestAnimationFrame(update);
@@ -170,6 +191,7 @@ function HamsterGame({
       window.removeEventListener("keydown", keyDown);
       window.removeEventListener("keyup", keyUp);
       cancelAnimationFrame(rafId);
+      respawnTimeoutIds.forEach((id) => window.clearTimeout(id));
     };
   }, [onGameEnd]);
 
@@ -177,7 +199,8 @@ function HamsterGame({
     <div style={{ textAlign: "center", marginTop: "20px" }}>
       <h2>햄스터 모드</h2>
       <p>
-        남은 시간: {timeLeft}s | 점수: {score} | 잡은 사람: {kills}
+        남은 시간: {timeLeft}s | 점수: {score} | 잡은 사람: {kills} | 현재 사람:{" "}
+        {humans.length}
       </p>
       <p>WASD 또는 방향키로 이동</p>
 
@@ -383,8 +406,16 @@ function moveHumanWander(human: Human, hamster: Position, dt: number): Human {
 
     return {
       ...human,
-      x: clamp(human.x + direction.x * HUMAN_WANDER_SPEED * dt, 0, GAME_WIDTH - HUMAN_SIZE),
-      y: clamp(human.y + direction.y * HUMAN_WANDER_SPEED * dt, 0, GAME_HEIGHT - HUMAN_SIZE),
+      x: clamp(
+        human.x + direction.x * HUMAN_WANDER_SPEED * dt,
+        0,
+        GAME_WIDTH - HUMAN_SIZE
+      ),
+      y: clamp(
+        human.y + direction.y * HUMAN_WANDER_SPEED * dt,
+        0,
+        GAME_HEIGHT - HUMAN_SIZE
+      ),
       directionX: direction.x,
       directionY: direction.y,
       directionChangeTimer: randomBetween(0.6, 1.2),
@@ -535,19 +566,21 @@ function removeCollidedHumans(
 }
 
 function createHumans(): Human[] {
-  return Array.from({ length: HUMAN_COUNT }, (_, index) => {
-    const direction = getRandomDirection();
+  return Array.from({ length: HUMAN_COUNT }, (_, index) => createHuman(index));
+}
 
-    return {
-      id: index,
-      x: Math.random() * (GAME_WIDTH - HUMAN_SIZE),
-      y: Math.random() * (GAME_HEIGHT - HUMAN_SIZE),
-      state: "WANDER",
-      directionX: direction.x,
-      directionY: direction.y,
-      directionChangeTimer: randomBetween(0.5, 2.0),
-    };
-  });
+function createHuman(id: number): Human {
+  const direction = getRandomDirection();
+
+  return {
+    id,
+    x: Math.random() * (GAME_WIDTH - HUMAN_SIZE),
+    y: Math.random() * (GAME_HEIGHT - HUMAN_SIZE),
+    state: "WANDER",
+    directionX: direction.x,
+    directionY: direction.y,
+    directionChangeTimer: randomBetween(0.5, 2.0),
+  };
 }
 
 function getCenter(position: Position, size: number): Position {
