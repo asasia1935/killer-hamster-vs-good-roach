@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 const TILE_SIZE = 40;
 
 const ROACH_SPEED = 100;
-const HAMSTER_SPEED = 115;
+const HAMSTER_SPEED = 125;
 
 const MAP = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -200,21 +200,41 @@ function moveRoach(
   if (keys.has("a") || keys.has("arrowleft")) dx -= 1;
   if (keys.has("d") || keys.has("arrowright")) dx += 1;
 
-  if (dx === 0 && dy === 0) {
-    return currentPosition;
+  let nextX = currentPosition.x;
+  let nextY = currentPosition.y;
+
+  // 👉 X축 먼저 처리
+  if (dx !== 0) {
+    const length = Math.abs(dx);
+
+    const candidateX =
+      currentPosition.x + (dx / length) * ROACH_SPEED * dt;
+
+    const testPos = { x: candidateX, y: currentPosition.y };
+
+    if (!isWallAtPixel(testPos)) {
+      nextX = candidateX;
+    }
   }
 
-  const length = Math.sqrt(dx * dx + dy * dy);
-  const nextPosition = {
-    x: currentPosition.x + (dx / length) * ROACH_SPEED * dt,
-    y: currentPosition.y + (dy / length) * ROACH_SPEED * dt,
+  // 👉 Y축 따로 처리
+  if (dy !== 0) {
+    const length = Math.abs(dy);
+
+    const candidateY =
+      currentPosition.y + (dy / length) * ROACH_SPEED * dt;
+
+    const testPos = { x: nextX, y: candidateY };
+
+    if (!isWallAtPixel(testPos)) {
+      nextY = candidateY;
+    }
+  }
+
+  return {
+    x: nextX,
+    y: nextY,
   };
-
-  if (isWallAtPixel(nextPosition)) {
-    return currentPosition;
-  }
-
-  return nextPosition;
 }
 
 function moveHamsterTowardRoach(
