@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 const TILE_SIZE = 40;
 
 const ROACH_SPEED = 100;
-const HAMSTER_SPEED = 125;
+const HAMSTER_SPEED = 155;
+const HAMSTER_THINK_INTERVAL_MS = 500;
 
 const MAP = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -43,6 +44,9 @@ export function RoachGame() {
   const roachRef = useRef(roachPosition);
   const hamsterRef = useRef(hamsterPosition);
 
+  const hamsterTargetGridRef = useRef<GridPosition | null>(null);
+  const hamsterThinkTimerRef = useRef(0);
+
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
       pressedKeys.current.add(event.key.toLowerCase());
@@ -76,8 +80,11 @@ export function RoachGame() {
       const nextHamster = moveHamsterTowardRoach(
         hamsterRef.current,
         nextRoach,
-        dt
+        dt,
+        hamsterTargetGridRef,
+        hamsterThinkTimerRef
       );
+
       hamsterRef.current = nextHamster;
       setHamsterPosition(nextHamster);
 
@@ -98,33 +105,35 @@ export function RoachGame() {
     };
   }, [isGameOver]);
 
+  const restart = () => {
+    const roachStart = gridToPixelCenter({ col: 1, row: 1 });
+    const hamsterStart = gridToPixelCenter({ col: 8, row: 8 });
+
+    roachRef.current = roachStart;
+    hamsterRef.current = hamsterStart;
+
+    hamsterTargetGridRef.current = null;
+    hamsterThinkTimerRef.current = 0;
+    lastTimeRef.current = null;
+
+    setRoachPosition(roachStart);
+    setHamsterPosition(hamsterStart);
+    setIsGameOver(false);
+  };
+
   return (
     <div style={{ textAlign: "center", marginTop: "20px" }}>
       <h2>바퀴벌레 모드</h2>
       <p>WASD 또는 방향키로 도망치세요</p>
       <p>
-        바퀴벌레 속도: {ROACH_SPEED} / 햄스터 속도: {HAMSTER_SPEED}
+        바퀴벌레 속도: {ROACH_SPEED} / 햄스터 속도: {HAMSTER_SPEED} / 생각 딜레이:{" "}
+        {HAMSTER_THINK_INTERVAL_MS}ms
       </p>
 
       {isGameOver && (
         <div>
           <h3>잡혔다!</h3>
-          <button
-            onClick={() => {
-              const roachStart = gridToPixelCenter({ col: 1, row: 1 });
-              const hamsterStart = gridToPixelCenter({ col: 8, row: 8 });
-
-              roachRef.current = roachStart;
-              hamsterRef.current = hamsterStart;
-
-              setRoachPosition(roachStart);
-              setHamsterPosition(hamsterStart);
-              setIsGameOver(false);
-              lastTimeRef.current = null;
-            }}
-          >
-            다시 하기
-          </button>
+          <button onClick={restart}>다시 하기</button>
         </div>
       )}
 
@@ -203,30 +212,20 @@ function moveRoach(
   let nextX = currentPosition.x;
   let nextY = currentPosition.y;
 
-  // 👉 X축 먼저 처리
   if (dx !== 0) {
-    const length = Math.abs(dx);
+    const candidateX = currentPosition.x + Math.sign(dx) * ROACH_SPEED * dt;
+    const testPosition = { x: candidateX, y: currentPosition.y };
 
-    const candidateX =
-      currentPosition.x + (dx / length) * ROACH_SPEED * dt;
-
-    const testPos = { x: candidateX, y: currentPosition.y };
-
-    if (!isWallAtPixel(testPos)) {
+    if (!isWallAtPixel(testPosition)) {
       nextX = candidateX;
     }
   }
 
-  // 👉 Y축 따로 처리
   if (dy !== 0) {
-    const length = Math.abs(dy);
+    const candidateY = currentPosition.y + Math.sign(dy) * ROACH_SPEED * dt;
+    const testPosition = { x: nextX, y: candidateY };
 
-    const candidateY =
-      currentPosition.y + (dy / length) * ROACH_SPEED * dt;
-
-    const testPos = { x: nextX, y: candidateY };
-
-    if (!isWallAtPixel(testPos)) {
+    if (!isWallAtPixel(testPosition)) {
       nextY = candidateY;
     }
   }
@@ -240,12 +239,21 @@ function moveRoach(
 function moveHamsterTowardRoach(
   hamster: Position,
   roach: Position,
-  dt: number
+  dt: number,
+  targetGridRef: { current: GridPosition | null },
+  thinkTimerRef: { current: number }
 ): Position {
-  const hamsterGrid = pixelToGrid(hamster);
-  const roachGrid = pixelToGrid(roach);
+  thinkTimerRef.current -= dt * 1000;
 
-  const nextGrid = findNextStepByBfs(hamsterGrid, roachGrid);
+  if (thinkTimerRef.current <= 0 || targetGridRef.current === null) {
+    const hamsterGrid = pixelToGrid(hamster);
+    const roachGrid = pixelToGrid(roach);
+
+    targetGridRef.current = findNextStepByBfs(hamsterGrid, roachGrid);
+    thinkTimerRef.current = HAMSTER_THINK_INTERVAL_MS;
+  }
+
+  const nextGrid = targetGridRef.current;
 
   if (!nextGrid) {
     return hamster;
@@ -258,12 +266,14 @@ function moveHamsterTowardRoach(
   const distance = Math.sqrt(dx * dx + dy * dy);
 
   if (distance === 0) {
+    targetGridRef.current = null;
     return hamster;
   }
 
   const moveDistance = HAMSTER_SPEED * dt;
 
   if (moveDistance >= distance) {
+    targetGridRef.current = null;
     return targetPixel;
   }
 
@@ -324,7 +334,10 @@ function findNextStepByBfs(
   let current: GridPosition = target;
   let previous = parent.get(toKey(current));
 
-  while (previous && !(previous.col === start.col && previous.row === start.row)) {
+  while (
+    previous &&
+    !(previous.col === start.col && previous.row === start.row)
+  ) {
     current = previous;
     previous = parent.get(toKey(current));
   }
