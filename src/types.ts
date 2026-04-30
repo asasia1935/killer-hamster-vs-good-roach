@@ -1,4 +1,4 @@
-export type Screen = "INTRO" | "GAME" | "RESULT" | "LEADERBOARD";
+export type Screen = "INTRO" | "HAMSTER_GAME" | "RESULT" | "LEADERBOARD" | "ROACH_GAME";
 
 export type Position = {
   x: number;

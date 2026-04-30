@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { HamsterGame } from "./games/hamster/HamsterGame";
+import { RoachGame } from "./games/roach/RoachGame";
 import type { LeaderboardItem, Screen } from "./types";
 
 function App() {
@@ -40,7 +41,8 @@ function App() {
       <div style={{ textAlign: "center", marginTop: "100px" }}>
         <h1>살인 햄스터 vs 착한 바퀴벌레</h1>
         <p>당신은 누구를 선택하시겠습니까?</p>
-        <button onClick={() => setScreen("GAME")}>살인 햄스터 선택</button>
+        <button onClick={() => setScreen("HAMSTER_GAME")}>살인 햄스터 선택</button>
+        <button onClick={() => setScreen("ROACH_GAME")}>착한 바퀴벌레 선택</button>
         <br />
         <br />
         <button onClick={() => setScreen("LEADERBOARD")}>리더보드 보기</button>
@@ -66,7 +68,7 @@ function App() {
         <br />
 
         <button onClick={submitScore}>점수 등록</button>
-        <button onClick={() => setScreen("GAME")}>다시 하기</button>
+        <button onClick={() => setScreen("HAMSTER_GAME")}>다시 하기</button>
         <button onClick={() => setScreen("LEADERBOARD")}>리더보드 보기</button>
       </div>
     );
@@ -93,9 +95,13 @@ function App() {
         <br />
 
         <button onClick={() => setScreen("INTRO")}>처음으로</button>
-        <button onClick={() => setScreen("GAME")}>다시 하기</button>
+        <button onClick={() => setScreen("HAMSTER_GAME")}>다시 하기</button>
       </div>
     );
+  }
+
+  if (screen === "ROACH_GAME") {
+    return <RoachGame />;
   }
 
   return (
