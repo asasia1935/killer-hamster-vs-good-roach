@@ -1,4 +1,4 @@
-export type Screen = "INTRO" | "GAME" | "RESULT";
+export type Screen = "INTRO" | "GAME" | "RESULT" | "LEADERBOARD";
 
 export type Position = {
   x: number;
@@ -15,4 +15,12 @@ export type Human = {
   directionX: number;
   directionY: number;
   directionChangeTimer: number;
+};
+
+export type LeaderboardItem = {
+  id: number;
+  nickname: string;
+  score: number;
+  kills: number;
+  createdAt: number;
 };
