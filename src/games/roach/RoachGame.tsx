@@ -20,7 +20,11 @@ import {
   tryWallJump,
 } from "./roachLogic";
 
-export function RoachGame() {
+type RoachGameProps = {
+  onGameEnd: (score: number) => void;
+};
+
+export function RoachGame({ onGameEnd }: RoachGameProps) {
   const [roachPosition, setRoachPosition] = useState<Position>(
     gridToPixelCenter({ col: 1, row: 1 })
   );
@@ -45,6 +49,8 @@ export function RoachGame() {
   const hamsterTargetGridRef = useRef<GridPosition | null>(null);
   const hamsterThinkTimerRef = useRef(0);
   const hamsterRevealTimerRef = useRef(0);
+
+  const elapsedTimeRef = useRef(0);
 
   const dashTimeLeftRef = useRef(0);
   const dashCooldownLeftRef = useRef(0);
@@ -98,6 +104,8 @@ export function RoachGame() {
 
       const dt = (time - lastTimeRef.current) / 1000;
       lastTimeRef.current = time;
+
+      elapsedTimeRef.current += dt;
 
       if (isGameOver) return;
 
@@ -153,6 +161,8 @@ export function RoachGame() {
       if (getDistance(nextRoach, nextHamster) < 34) {
         setIsGameOver(true);
         setIsHamsterVisible(true);
+        const survivalScore = Math.floor(elapsedTimeRef.current * 10);
+        onGameEnd(survivalScore);
         return;
       }
 
@@ -187,6 +197,8 @@ export function RoachGame() {
 
     lastTimeRef.current = null;
 
+    elapsedTimeRef.current = 0;
+
     setRoachPosition(roachStart);
     setHamsterPosition(hamsterStart);
     setIsHamsterVisible(true);
@@ -199,20 +211,9 @@ export function RoachGame() {
   return (
     <div style={{ textAlign: "center", marginTop: 20 }}>
       <h2>바퀴벌레 모드</h2>
-
       <p>WASD 또는 방향키로 도망치세요 / Shift: 질주 / Space: 벽넘기</p>
-
-      <p>
-        바퀴벌레 속도: {ROACH_SPEED} / 질주 속도: {ROACH_DASH_SPEED} / 햄스터
-        속도: {HAMSTER_ROACH_MODE_SPEED} / 생각 딜레이:{" "}
-        {HAMSTER_THINK_INTERVAL_MS}ms
-      </p>
-
-      <p>
-        질주: {isDashing ? "사용 중" : "대기"} | 질주 쿨타임:{" "}
-        {Math.ceil(dashCooldownLeft / 1000)}초 | 벽넘기 쿨타임:{" "}
-        {Math.ceil(wallJumpCooldownLeft / 1000)}초
-      </p>
+      <p> 스킬 (질주): {isDashing ? "사용 중" : "사용 가능"} | 질주 쿨타임:{" "} {Math.ceil(dashCooldownLeft / 1000)}초 | 벽넘기 쿨타임:{" "} {Math.ceil(wallJumpCooldownLeft / 1000)}초 </p>
+      <p>생존 시간: {elapsedTimeRef.current.toFixed(1)}초</p>
 
       {isGameOver && (
         <div>
