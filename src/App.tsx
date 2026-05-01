@@ -211,7 +211,7 @@ function App() {
           <ol style={{ display: "inline-block", textAlign: "left" }}>
             {hamsterLeaderboard.map((item) => (
               <li key={item.id}>
-                {item.nickname} - {item.score}점 / {item.kills}킬
+                {item.nickname} - {item.score}점
               </li>
             ))}
           </ol>
