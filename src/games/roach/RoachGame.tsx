@@ -3,11 +3,15 @@ import { useEffect, useRef, useState } from "react";
 const TILE_SIZE = 40;
 
 const ROACH_SPEED = 100;
-const HAMSTER_SPEED = 130;
+const ROACH_DASH_SPEED = 180;
+const DASH_DURATION_MS = 1500;
+const DASH_COOLDOWN_MS = 6000;
+
+const HAMSTER_SPEED = 155;
 const HAMSTER_THINK_INTERVAL_MS = 1000;
 
 const HAMSTER_REVEAL_INTERVAL_MS = 1000;
-const HAMSTER_REVEAL_DURATION_MS = 800;
+const HAMSTER_REVEAL_DURATION_MS = 750;
 
 const MAP = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -42,6 +46,9 @@ export function RoachGame() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isHamsterVisible, setIsHamsterVisible] = useState(true);
 
+  const [dashCooldownLeft, setDashCooldownLeft] = useState(0);
+  const [isDashing, setIsDashing] = useState(false);
+
   const pressedKeys = useRef<Set<string>>(new Set());
   const lastTimeRef = useRef<number | null>(null);
 
@@ -52,11 +59,28 @@ export function RoachGame() {
   const hamsterThinkTimerRef = useRef(0);
   const hamsterRevealTimerRef = useRef(0);
 
+  const dashTimeLeftRef = useRef(0);
+  const dashCooldownLeftRef = useRef(0);
+
   useEffect(() => {
-    const keyDown = (e: KeyboardEvent) =>
+    const keyDown = (e: KeyboardEvent) => {
       pressedKeys.current.add(e.key.toLowerCase());
-    const keyUp = (e: KeyboardEvent) =>
+
+      if (
+        e.key === "Shift" &&
+        dashCooldownLeftRef.current <= 0 &&
+        dashTimeLeftRef.current <= 0
+      ) {
+        dashTimeLeftRef.current = DASH_DURATION_MS;
+        dashCooldownLeftRef.current = DASH_COOLDOWN_MS;
+        setIsDashing(true);
+        setDashCooldownLeft(DASH_COOLDOWN_MS);
+      }
+    };
+
+    const keyUp = (e: KeyboardEvent) => {
       pressedKeys.current.delete(e.key.toLowerCase());
+    };
 
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
@@ -71,18 +95,35 @@ export function RoachGame() {
 
       if (isGameOver) return;
 
-      // 🐹 핑 시스템
+      dashTimeLeftRef.current = Math.max(
+        0,
+        dashTimeLeftRef.current - dt * 1000
+      );
+      dashCooldownLeftRef.current = Math.max(
+        0,
+        dashCooldownLeftRef.current - dt * 1000
+      );
+
+      setIsDashing(dashTimeLeftRef.current > 0);
+      setDashCooldownLeft(Math.ceil(dashCooldownLeftRef.current));
+
       hamsterRevealTimerRef.current += dt * 1000;
       const cycle =
         hamsterRevealTimerRef.current % HAMSTER_REVEAL_INTERVAL_MS;
       setIsHamsterVisible(cycle <= HAMSTER_REVEAL_DURATION_MS);
 
-      // 🪳 이동
-      const nextRoach = moveRoach(roachRef.current, pressedKeys.current, dt);
+      const currentRoachSpeed =
+        dashTimeLeftRef.current > 0 ? ROACH_DASH_SPEED : ROACH_SPEED;
+
+      const nextRoach = moveRoach(
+        roachRef.current,
+        pressedKeys.current,
+        dt,
+        currentRoachSpeed
+      );
       roachRef.current = nextRoach;
       setRoachPosition(nextRoach);
 
-      // 🐹 추격
       const nextHamster = moveHamsterTowardRoach(
         hamsterRef.current,
         nextRoach,
@@ -121,17 +162,26 @@ export function RoachGame() {
     hamsterTargetGridRef.current = null;
     hamsterThinkTimerRef.current = 0;
     hamsterRevealTimerRef.current = 0;
+    dashTimeLeftRef.current = 0;
+    dashCooldownLeftRef.current = 0;
     lastTimeRef.current = null;
 
     setRoachPosition(r);
     setHamsterPosition(h);
     setIsHamsterVisible(true);
     setIsGameOver(false);
+    setIsDashing(false);
+    setDashCooldownLeft(0);
   };
 
   return (
     <div style={{ textAlign: "center", marginTop: 20 }}>
       <h2>바퀴벌레 모드</h2>
+      <p>WASD 또는 방향키로 도망치세요 / Shift: 질주</p>
+      <p>
+        질주 상태: {isDashing ? "사용 중" : "대기"} | 쿨타임:{" "}
+        {Math.ceil(dashCooldownLeft / 1000)}초
+      </p>
 
       {isGameOver && (
         <div>
@@ -171,7 +221,7 @@ export function RoachGame() {
             position: "absolute",
             left: roachPosition.x - TILE_SIZE / 2,
             top: roachPosition.y - TILE_SIZE / 2,
-            fontSize: 26,
+            fontSize: isDashing ? 32 : 26,
           }}
         >
           🪳
@@ -194,26 +244,30 @@ export function RoachGame() {
   );
 }
 
-/* 이동 */
+function moveRoach(
+  pos: Position,
+  keys: Set<string>,
+  dt: number,
+  speed: number
+): Position {
+  let dx = 0;
+  let dy = 0;
 
-function moveRoach(pos: Position, keys: Set<string>, dt: number): Position {
-  let dx = 0,
-    dy = 0;
   if (keys.has("w") || keys.has("arrowup")) dy -= 1;
   if (keys.has("s") || keys.has("arrowdown")) dy += 1;
   if (keys.has("a") || keys.has("arrowleft")) dx -= 1;
   if (keys.has("d") || keys.has("arrowright")) dx += 1;
 
-  let x = pos.x,
-    y = pos.y;
+  let x = pos.x;
+  let y = pos.y;
 
   if (dx !== 0) {
-    const nx = x + Math.sign(dx) * ROACH_SPEED * dt;
+    const nx = x + Math.sign(dx) * speed * dt;
     if (!isWallAtPixel({ x: nx, y })) x = nx;
   }
 
   if (dy !== 0) {
-    const ny = y + Math.sign(dy) * ROACH_SPEED * dt;
+    const ny = y + Math.sign(dy) * speed * dt;
     if (!isWallAtPixel({ x, y: ny })) y = ny;
   }
 
@@ -239,7 +293,6 @@ function moveHamsterTowardRoach(
 
   if (!targetRef.current) return hamster;
 
-  // ⭐ 핵심: 중앙이 아니라 "칸 내부 최적 위치"
   const target = gridToClosestPointInCell(targetRef.current, roach);
 
   const dx = target.x - hamster.x;
@@ -249,6 +302,7 @@ function moveHamsterTowardRoach(
   if (dist === 0) return hamster;
 
   const move = HAMSTER_SPEED * dt;
+
   if (move >= dist) {
     targetRef.current = null;
     return target;
@@ -260,8 +314,6 @@ function moveHamsterTowardRoach(
   };
 }
 
-/* BFS */
-
 function findNextStepByBfs(
   start: GridPosition,
   target: GridPosition
@@ -269,6 +321,7 @@ function findNextStepByBfs(
   const q = [start];
   const visited = new Set([toKey(start)]);
   const parent = new Map<string, GridPosition | null>();
+
   parent.set(toKey(start), null);
 
   const dirs = [
@@ -308,8 +361,6 @@ function findNextStepByBfs(
   return cur;
 }
 
-/* 핵심 개선 함수 */
-
 function gridToClosestPointInCell(
   grid: GridPosition,
   target: Position
@@ -325,8 +376,6 @@ function gridToClosestPointInCell(
   };
 }
 
-/* util */
-
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(v, max));
 }
@@ -341,8 +390,10 @@ function isWallAtGrid(p: GridPosition) {
     p.row >= MAP.length ||
     p.col < 0 ||
     p.col >= MAP[0].length
-  )
+  ) {
     return true;
+  }
+
   return MAP[p.row][p.col] === 1;
 }
 
