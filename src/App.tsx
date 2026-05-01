@@ -1,22 +1,74 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HamsterGame } from "./games/hamster/HamsterGame";
 import { RoachGame } from "./games/roach/RoachGame";
-import type { LeaderboardItem, Screen } from "./types";
+import type { Screen } from "./types";
 
-type GameMode = "HAMSTER" | "ROACH";
+import { leaderboardRepository } from "./leaderboard/leaderboardRepositoryInstance";
+import type { GameMode } from "./leaderboard/leaderboardTypes";
+
+type LocalLeaderboardItem = {
+  id: string;
+  nickname: string;
+  score: number;
+  kills: number;
+};
+
+type Mode = "HAMSTER" | "ROACH";
 
 function App() {
   const [screen, setScreen] = useState<Screen>("INTRO");
-  const [currentMode, setCurrentMode] = useState<GameMode>("HAMSTER");
+  const [currentMode, setCurrentMode] = useState<Mode>("HAMSTER");
 
   const [finalScore, setFinalScore] = useState(0);
   const [finalKills, setFinalKills] = useState(0);
   const [nickname, setNickname] = useState("");
 
-  const [hamsterLeaderboard, setHamsterLeaderboard] = useState<LeaderboardItem[]>([]);
-  const [roachLeaderboard, setRoachLeaderboard] = useState<LeaderboardItem[]>([]);
+  const [hamsterLeaderboard, setHamsterLeaderboard] = useState<LocalLeaderboardItem[]>([]);
+  const [roachLeaderboard, setRoachLeaderboard] = useState<LocalLeaderboardItem[]>([]);
 
-  const submitScore = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const toApiMode = (mode: Mode): GameMode =>
+    mode === "HAMSTER" ? "hamster" : "roach";
+
+  const loadLeaderboard = async () => {
+    try {
+      setErrorMessage("");
+
+      const [hamster, roach] = await Promise.all([
+        leaderboardRepository.getTopScores("hamster", 10),
+        leaderboardRepository.getTopScores("roach", 10),
+      ]);
+
+      setHamsterLeaderboard(
+        hamster.map((item) => ({
+          id: item.id,
+          nickname: item.nickname,
+          score: item.score,
+          kills: 0,
+        }))
+      );
+
+      setRoachLeaderboard(
+        roach.map((item) => ({
+          id: item.id,
+          nickname: item.nickname,
+          score: item.score,
+          kills: 0,
+        }))
+      );
+    } catch (error) {
+      console.error("리더보드 조회 실패:", error);
+      setErrorMessage("리더보드를 불러오지 못했습니다.");
+    }
+  };
+
+  useEffect(() => {
+    loadLeaderboard();
+  }, []);
+
+  const submitScore = async () => {
     const trimmedNickname = nickname.trim();
 
     if (trimmedNickname.length === 0) {
@@ -24,28 +76,29 @@ function App() {
       return;
     }
 
-    const newItem: LeaderboardItem = {
-      id: Date.now(),
-      nickname: trimmedNickname,
-      score: finalScore,
-      kills: finalKills,
-      createdAt: Date.now(),
-    };
+    try {
+      setIsSubmitting(true);
+      setErrorMessage("");
 
-    if (currentMode === "HAMSTER") {
-      setHamsterLeaderboard((prev) =>
-        [...prev, newItem].sort((a, b) => b.score - a.score).slice(0, 10)
-      );
+      const command = {
+        mode: toApiMode(currentMode),
+        nickname: trimmedNickname,
+        score: finalScore,
+      };
+
+      console.log("Supabase 점수 등록 시도:", command);
+
+      await leaderboardRepository.submitScore(command);
+      await loadLeaderboard();
+
+      setNickname("");
+      setScreen("LEADERBOARD");
+    } catch (error) {
+      console.error("점수 등록 실패:", error);
+      setErrorMessage("점수 등록에 실패했습니다. 콘솔 에러를 확인해주세요.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (currentMode === "ROACH") {
-      setRoachLeaderboard((prev) =>
-        [...prev, newItem].sort((a, b) => b.score - a.score).slice(0, 10)
-      );
-    }
-
-    setNickname("");
-    setScreen("LEADERBOARD");
   };
 
   if (screen === "INTRO") {
@@ -75,7 +128,16 @@ function App() {
         <br />
         <br />
 
-        <button onClick={() => setScreen("LEADERBOARD")}>리더보드 보기</button>
+        <button
+          onClick={async () => {
+            await loadLeaderboard();
+            setScreen("LEADERBOARD");
+          }}
+        >
+          리더보드 보기
+        </button>
+
+        {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
       </div>
     );
   }
@@ -107,17 +169,30 @@ function App() {
         <br />
         <br />
 
-        <button onClick={submitScore}>점수 등록</button>
+        <button onClick={submitScore} disabled={isSubmitting}>
+          {isSubmitting ? "등록 중..." : "점수 등록"}
+        </button>
 
         <button
           onClick={() =>
             setScreen(currentMode === "HAMSTER" ? "HAMSTER_GAME" : "ROACH_GAME")
           }
+          disabled={isSubmitting}
         >
           다시 하기
         </button>
 
-        <button onClick={() => setScreen("LEADERBOARD")}>리더보드 보기</button>
+        <button
+          onClick={async () => {
+            await loadLeaderboard();
+            setScreen("LEADERBOARD");
+          }}
+          disabled={isSubmitting}
+        >
+          리더보드 보기
+        </button>
+
+        {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
       </div>
     );
   }
@@ -126,6 +201,8 @@ function App() {
     return (
       <div style={{ textAlign: "center", marginTop: "80px" }}>
         <h2>리더보드</h2>
+
+        {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
 
         <h3>🐹 햄스터 모드</h3>
         {hamsterLeaderboard.length === 0 ? (
