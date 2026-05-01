@@ -3,8 +3,11 @@ import { useEffect, useRef, useState } from "react";
 const TILE_SIZE = 40;
 
 const ROACH_SPEED = 100;
-const HAMSTER_SPEED = 155;
-const HAMSTER_THINK_INTERVAL_MS = 500;
+const HAMSTER_SPEED = 160;
+const HAMSTER_THINK_INTERVAL_MS = 1000;
+
+const HAMSTER_REVEAL_INTERVAL_MS = 600;
+const HAMSTER_REVEAL_DURATION_MS = 500;
 
 const MAP = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -37,6 +40,7 @@ export function RoachGame() {
     gridToPixelCenter({ col: 8, row: 8 })
   );
   const [isGameOver, setIsGameOver] = useState(false);
+  const [isHamsterVisible, setIsHamsterVisible] = useState(true);
 
   const pressedKeys = useRef<Set<string>>(new Set());
   const lastTimeRef = useRef<number | null>(null);
@@ -46,6 +50,7 @@ export function RoachGame() {
 
   const hamsterTargetGridRef = useRef<GridPosition | null>(null);
   const hamsterThinkTimerRef = useRef(0);
+  const hamsterRevealTimerRef = useRef(0);
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
@@ -73,6 +78,13 @@ export function RoachGame() {
         return;
       }
 
+      hamsterRevealTimerRef.current += dt * 1000;
+
+      const revealCycle =
+        hamsterRevealTimerRef.current % HAMSTER_REVEAL_INTERVAL_MS;
+
+      setIsHamsterVisible(revealCycle <= HAMSTER_REVEAL_DURATION_MS);
+
       const nextRoach = moveRoach(roachRef.current, pressedKeys.current, dt);
       roachRef.current = nextRoach;
       setRoachPosition(nextRoach);
@@ -90,6 +102,7 @@ export function RoachGame() {
 
       if (getDistance(nextRoach, nextHamster) < 26) {
         setIsGameOver(true);
+        setIsHamsterVisible(true);
         return;
       }
 
@@ -114,10 +127,12 @@ export function RoachGame() {
 
     hamsterTargetGridRef.current = null;
     hamsterThinkTimerRef.current = 0;
+    hamsterRevealTimerRef.current = 0;
     lastTimeRef.current = null;
 
     setRoachPosition(roachStart);
     setHamsterPosition(hamsterStart);
+    setIsHamsterVisible(true);
     setIsGameOver(false);
   };
 
@@ -126,8 +141,12 @@ export function RoachGame() {
       <h2>바퀴벌레 모드</h2>
       <p>WASD 또는 방향키로 도망치세요</p>
       <p>
-        바퀴벌레 속도: {ROACH_SPEED} / 햄스터 속도: {HAMSTER_SPEED} / 생각 딜레이:{" "}
-        {HAMSTER_THINK_INTERVAL_MS}ms
+        바퀴벌레 속도: {ROACH_SPEED} / 햄스터 속도: {HAMSTER_SPEED} / 생각
+        딜레이: {HAMSTER_THINK_INTERVAL_MS}ms
+      </p>
+      <p>
+        햄스터 위치: {HAMSTER_REVEAL_INTERVAL_MS / 1000}초마다{" "}
+        {HAMSTER_REVEAL_DURATION_MS / 1000}초 표시
       </p>
 
       {isGameOver && (
@@ -178,19 +197,21 @@ export function RoachGame() {
           🪳
         </div>
 
-        <div
-          style={{
-            position: "absolute",
-            left: hamsterPosition.x - TILE_SIZE / 2,
-            top: hamsterPosition.y - TILE_SIZE / 2,
-            width: TILE_SIZE,
-            height: TILE_SIZE,
-            fontSize: "28px",
-            lineHeight: `${TILE_SIZE}px`,
-          }}
-        >
-          🐹
-        </div>
+        {isHamsterVisible && (
+          <div
+            style={{
+              position: "absolute",
+              left: hamsterPosition.x - TILE_SIZE / 2,
+              top: hamsterPosition.y - TILE_SIZE / 2,
+              width: TILE_SIZE,
+              height: TILE_SIZE,
+              fontSize: "28px",
+              lineHeight: `${TILE_SIZE}px`,
+            }}
+          >
+            🐹
+          </div>
+        )}
       </div>
     </div>
   );
