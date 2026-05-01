@@ -24,3 +24,13 @@ export type LeaderboardItem = {
   kills: number;
   createdAt: number;
 };
+
+export type GridPosition = {
+  col: number;
+  row: number;
+};
+
+export type Direction = {
+  dx: number;
+  dy: number;
+};
