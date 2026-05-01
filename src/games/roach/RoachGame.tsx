@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from "react";
 const TILE_SIZE = 40;
 
 const ROACH_SPEED = 100;
-const HAMSTER_SPEED = 160;
+const HAMSTER_SPEED = 130;
 const HAMSTER_THINK_INTERVAL_MS = 1000;
 
-const HAMSTER_REVEAL_INTERVAL_MS = 600;
-const HAMSTER_REVEAL_DURATION_MS = 500;
+const HAMSTER_REVEAL_INTERVAL_MS = 1000;
+const HAMSTER_REVEAL_DURATION_MS = 800;
 
 const MAP = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -53,13 +53,10 @@ export function RoachGame() {
   const hamsterRevealTimerRef = useRef(0);
 
   useEffect(() => {
-    const keyDown = (event: KeyboardEvent) => {
-      pressedKeys.current.add(event.key.toLowerCase());
-    };
-
-    const keyUp = (event: KeyboardEvent) => {
-      pressedKeys.current.delete(event.key.toLowerCase());
-    };
+    const keyDown = (e: KeyboardEvent) =>
+      pressedKeys.current.add(e.key.toLowerCase());
+    const keyUp = (e: KeyboardEvent) =>
+      pressedKeys.current.delete(e.key.toLowerCase());
 
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
@@ -67,28 +64,25 @@ export function RoachGame() {
     let rafId: number;
 
     const update = (time: number) => {
-      if (lastTimeRef.current === null) {
-        lastTimeRef.current = time;
-      }
+      if (lastTimeRef.current === null) lastTimeRef.current = time;
 
       const dt = (time - lastTimeRef.current) / 1000;
       lastTimeRef.current = time;
 
-      if (isGameOver) {
-        return;
-      }
+      if (isGameOver) return;
 
+      // 🐹 핑 시스템
       hamsterRevealTimerRef.current += dt * 1000;
-
-      const revealCycle =
+      const cycle =
         hamsterRevealTimerRef.current % HAMSTER_REVEAL_INTERVAL_MS;
+      setIsHamsterVisible(cycle <= HAMSTER_REVEAL_DURATION_MS);
 
-      setIsHamsterVisible(revealCycle <= HAMSTER_REVEAL_DURATION_MS);
-
+      // 🪳 이동
       const nextRoach = moveRoach(roachRef.current, pressedKeys.current, dt);
       roachRef.current = nextRoach;
       setRoachPosition(nextRoach);
 
+      // 🐹 추격
       const nextHamster = moveHamsterTowardRoach(
         hamsterRef.current,
         nextRoach,
@@ -96,11 +90,10 @@ export function RoachGame() {
         hamsterTargetGridRef,
         hamsterThinkTimerRef
       );
-
       hamsterRef.current = nextHamster;
       setHamsterPosition(nextHamster);
 
-      if (getDistance(nextRoach, nextHamster) < 26) {
+      if (getDistance(nextRoach, nextHamster) < 34) {
         setIsGameOver(true);
         setIsHamsterVisible(true);
         return;
@@ -119,40 +112,31 @@ export function RoachGame() {
   }, [isGameOver]);
 
   const restart = () => {
-    const roachStart = gridToPixelCenter({ col: 1, row: 1 });
-    const hamsterStart = gridToPixelCenter({ col: 8, row: 8 });
+    const r = gridToPixelCenter({ col: 1, row: 1 });
+    const h = gridToPixelCenter({ col: 8, row: 8 });
 
-    roachRef.current = roachStart;
-    hamsterRef.current = hamsterStart;
+    roachRef.current = r;
+    hamsterRef.current = h;
 
     hamsterTargetGridRef.current = null;
     hamsterThinkTimerRef.current = 0;
     hamsterRevealTimerRef.current = 0;
     lastTimeRef.current = null;
 
-    setRoachPosition(roachStart);
-    setHamsterPosition(hamsterStart);
+    setRoachPosition(r);
+    setHamsterPosition(h);
     setIsHamsterVisible(true);
     setIsGameOver(false);
   };
 
   return (
-    <div style={{ textAlign: "center", marginTop: "20px" }}>
+    <div style={{ textAlign: "center", marginTop: 20 }}>
       <h2>바퀴벌레 모드</h2>
-      <p>WASD 또는 방향키로 도망치세요</p>
-      <p>
-        바퀴벌레 속도: {ROACH_SPEED} / 햄스터 속도: {HAMSTER_SPEED} / 생각
-        딜레이: {HAMSTER_THINK_INTERVAL_MS}ms
-      </p>
-      <p>
-        햄스터 위치: {HAMSTER_REVEAL_INTERVAL_MS / 1000}초마다{" "}
-        {HAMSTER_REVEAL_DURATION_MS / 1000}초 표시
-      </p>
 
       {isGameOver && (
         <div>
-          <h3>잡혔다!</h3>
-          <button onClick={restart}>다시 하기</button>
+          <h3>잡힘</h3>
+          <button onClick={restart}>다시</button>
         </div>
       )}
 
@@ -165,19 +149,18 @@ export function RoachGame() {
           border: "2px solid black",
         }}
       >
-        {MAP.flatMap((row, rowIndex) =>
-          row.map((cell, colIndex) => (
+        {MAP.flatMap((row, y) =>
+          row.map((cell, x) => (
             <div
-              key={`${colIndex}-${rowIndex}`}
+              key={`${x}-${y}`}
               style={{
                 position: "absolute",
-                left: colIndex * TILE_SIZE,
-                top: rowIndex * TILE_SIZE,
+                left: x * TILE_SIZE,
+                top: y * TILE_SIZE,
                 width: TILE_SIZE,
                 height: TILE_SIZE,
-                backgroundColor: cell === 1 ? "black" : "white",
+                background: cell ? "black" : "white",
                 border: "1px solid #ccc",
-                boxSizing: "border-box",
               }}
             />
           ))
@@ -188,10 +171,7 @@ export function RoachGame() {
             position: "absolute",
             left: roachPosition.x - TILE_SIZE / 2,
             top: roachPosition.y - TILE_SIZE / 2,
-            width: TILE_SIZE,
-            height: TILE_SIZE,
-            fontSize: "26px",
-            lineHeight: `${TILE_SIZE}px`,
+            fontSize: 26,
           }}
         >
           🪳
@@ -203,10 +183,7 @@ export function RoachGame() {
               position: "absolute",
               left: hamsterPosition.x - TILE_SIZE / 2,
               top: hamsterPosition.y - TILE_SIZE / 2,
-              width: TILE_SIZE,
-              height: TILE_SIZE,
-              fontSize: "28px",
-              lineHeight: `${TILE_SIZE}px`,
+              fontSize: 28,
             }}
           >
             🐹
@@ -217,194 +194,178 @@ export function RoachGame() {
   );
 }
 
-function moveRoach(
-  currentPosition: Position,
-  keys: Set<string>,
-  dt: number
-): Position {
-  let dx = 0;
-  let dy = 0;
+/* 이동 */
 
+function moveRoach(pos: Position, keys: Set<string>, dt: number): Position {
+  let dx = 0,
+    dy = 0;
   if (keys.has("w") || keys.has("arrowup")) dy -= 1;
   if (keys.has("s") || keys.has("arrowdown")) dy += 1;
   if (keys.has("a") || keys.has("arrowleft")) dx -= 1;
   if (keys.has("d") || keys.has("arrowright")) dx += 1;
 
-  let nextX = currentPosition.x;
-  let nextY = currentPosition.y;
+  let x = pos.x,
+    y = pos.y;
 
   if (dx !== 0) {
-    const candidateX = currentPosition.x + Math.sign(dx) * ROACH_SPEED * dt;
-    const testPosition = { x: candidateX, y: currentPosition.y };
-
-    if (!isWallAtPixel(testPosition)) {
-      nextX = candidateX;
-    }
+    const nx = x + Math.sign(dx) * ROACH_SPEED * dt;
+    if (!isWallAtPixel({ x: nx, y })) x = nx;
   }
 
   if (dy !== 0) {
-    const candidateY = currentPosition.y + Math.sign(dy) * ROACH_SPEED * dt;
-    const testPosition = { x: nextX, y: candidateY };
-
-    if (!isWallAtPixel(testPosition)) {
-      nextY = candidateY;
-    }
+    const ny = y + Math.sign(dy) * ROACH_SPEED * dt;
+    if (!isWallAtPixel({ x, y: ny })) y = ny;
   }
 
-  return {
-    x: nextX,
-    y: nextY,
-  };
+  return { x, y };
 }
 
 function moveHamsterTowardRoach(
   hamster: Position,
   roach: Position,
   dt: number,
-  targetGridRef: { current: GridPosition | null },
-  thinkTimerRef: { current: number }
+  targetRef: { current: GridPosition | null },
+  timerRef: { current: number }
 ): Position {
-  thinkTimerRef.current -= dt * 1000;
+  timerRef.current -= dt * 1000;
 
-  if (thinkTimerRef.current <= 0 || targetGridRef.current === null) {
-    const hamsterGrid = pixelToGrid(hamster);
-    const roachGrid = pixelToGrid(roach);
-
-    targetGridRef.current = findNextStepByBfs(hamsterGrid, roachGrid);
-    thinkTimerRef.current = HAMSTER_THINK_INTERVAL_MS;
+  if (timerRef.current <= 0 || !targetRef.current) {
+    targetRef.current = findNextStepByBfs(
+      pixelToGrid(hamster),
+      pixelToGrid(roach)
+    );
+    timerRef.current = HAMSTER_THINK_INTERVAL_MS;
   }
 
-  const nextGrid = targetGridRef.current;
+  if (!targetRef.current) return hamster;
 
-  if (!nextGrid) {
-    return hamster;
-  }
+  // ⭐ 핵심: 중앙이 아니라 "칸 내부 최적 위치"
+  const target = gridToClosestPointInCell(targetRef.current, roach);
 
-  const targetPixel = gridToPixelCenter(nextGrid);
+  const dx = target.x - hamster.x;
+  const dy = target.y - hamster.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
 
-  const dx = targetPixel.x - hamster.x;
-  const dy = targetPixel.y - hamster.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
+  if (dist === 0) return hamster;
 
-  if (distance === 0) {
-    targetGridRef.current = null;
-    return hamster;
-  }
-
-  const moveDistance = HAMSTER_SPEED * dt;
-
-  if (moveDistance >= distance) {
-    targetGridRef.current = null;
-    return targetPixel;
+  const move = HAMSTER_SPEED * dt;
+  if (move >= dist) {
+    targetRef.current = null;
+    return target;
   }
 
   return {
-    x: hamster.x + (dx / distance) * moveDistance,
-    y: hamster.y + (dy / distance) * moveDistance,
+    x: hamster.x + (dx / dist) * move,
+    y: hamster.y + (dy / dist) * move,
   };
 }
+
+/* BFS */
 
 function findNextStepByBfs(
   start: GridPosition,
   target: GridPosition
 ): GridPosition | null {
-  const queue: GridPosition[] = [start];
-  const visited = new Set<string>([toKey(start)]);
+  const q = [start];
+  const visited = new Set([toKey(start)]);
   const parent = new Map<string, GridPosition | null>();
-
   parent.set(toKey(start), null);
 
-  const directions = [
+  const dirs = [
     { col: 1, row: 0 },
     { col: -1, row: 0 },
     { col: 0, row: 1 },
     { col: 0, row: -1 },
   ];
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
+  while (q.length) {
+    const cur = q.shift()!;
+    if (cur.col === target.col && cur.row === target.row) break;
 
-    if (current.col === target.col && current.row === target.row) {
-      break;
-    }
+    for (const d of dirs) {
+      const nxt = { col: cur.col + d.col, row: cur.row + d.row };
+      if (isWallAtGrid(nxt)) continue;
 
-    for (const direction of directions) {
-      const next = {
-        col: current.col + direction.col,
-        row: current.row + direction.row,
-      };
-
-      if (isWallAtGrid(next)) continue;
-
-      const key = toKey(next);
-
+      const key = toKey(nxt);
       if (visited.has(key)) continue;
 
       visited.add(key);
-      parent.set(key, current);
-      queue.push(next);
+      parent.set(key, cur);
+      q.push(nxt);
     }
   }
 
-  const targetKey = toKey(target);
+  if (!parent.has(toKey(target))) return null;
 
-  if (!parent.has(targetKey)) {
-    return null;
+  let cur = target;
+  let prev = parent.get(toKey(cur));
+
+  while (prev && !(prev.col === start.col && prev.row === start.row)) {
+    cur = prev;
+    prev = parent.get(toKey(cur));
   }
 
-  let current: GridPosition = target;
-  let previous = parent.get(toKey(current));
-
-  while (
-    previous &&
-    !(previous.col === start.col && previous.row === start.row)
-  ) {
-    current = previous;
-    previous = parent.get(toKey(current));
-  }
-
-  return current;
+  return cur;
 }
 
-function isWallAtPixel(position: Position): boolean {
-  const grid = pixelToGrid(position);
-  return isWallAtGrid(grid);
+/* 핵심 개선 함수 */
+
+function gridToClosestPointInCell(
+  grid: GridPosition,
+  target: Position
+): Position {
+  const minX = grid.col * TILE_SIZE + 6;
+  const maxX = (grid.col + 1) * TILE_SIZE - 6;
+  const minY = grid.row * TILE_SIZE + 6;
+  const maxY = (grid.row + 1) * TILE_SIZE - 6;
+
+  return {
+    x: clamp(target.x, minX, maxX),
+    y: clamp(target.y, minY, maxY),
+  };
 }
 
-function isWallAtGrid(position: GridPosition): boolean {
+/* util */
+
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(v, max));
+}
+
+function isWallAtPixel(p: Position) {
+  return isWallAtGrid(pixelToGrid(p));
+}
+
+function isWallAtGrid(p: GridPosition) {
   if (
-    position.row < 0 ||
-    position.row >= MAP.length ||
-    position.col < 0 ||
-    position.col >= MAP[0].length
-  ) {
+    p.row < 0 ||
+    p.row >= MAP.length ||
+    p.col < 0 ||
+    p.col >= MAP[0].length
+  )
     return true;
-  }
-
-  return MAP[position.row][position.col] === 1;
+  return MAP[p.row][p.col] === 1;
 }
 
-function pixelToGrid(position: Position): GridPosition {
+function pixelToGrid(p: Position): GridPosition {
   return {
-    col: Math.floor(position.x / TILE_SIZE),
-    row: Math.floor(position.y / TILE_SIZE),
+    col: Math.floor(p.x / TILE_SIZE),
+    row: Math.floor(p.y / TILE_SIZE),
   };
 }
 
-function gridToPixelCenter(position: GridPosition): Position {
+function gridToPixelCenter(p: GridPosition): Position {
   return {
-    x: position.col * TILE_SIZE + TILE_SIZE / 2,
-    y: position.row * TILE_SIZE + TILE_SIZE / 2,
+    x: p.col * TILE_SIZE + TILE_SIZE / 2,
+    y: p.row * TILE_SIZE + TILE_SIZE / 2,
   };
 }
 
-function toKey(position: GridPosition): string {
-  return `${position.col},${position.row}`;
+function toKey(p: GridPosition) {
+  return `${p.col},${p.row}`;
 }
 
-function getDistance(a: Position, b: Position): number {
+function getDistance(a: Position, b: Position) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
-
   return Math.sqrt(dx * dx + dy * dy);
 }
